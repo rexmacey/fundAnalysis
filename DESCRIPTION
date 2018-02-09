@@ -1,0 +1,18 @@
+Package: fundAnalysis
+Title: Provides Analytics on Mututal Funds and ETFs
+Version: 0.0.0.9000
+Authors@R: person("Rex", "Macey", email = "rex@macey.us", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+Depends: R (>= 3.4.3)
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    FactorAnalytics,
+    MASS,
+    quantmod,
+    readr,
+    rvest,
+    xts
+RoxygenNote: 6.0.1
+Suggests: testthat
