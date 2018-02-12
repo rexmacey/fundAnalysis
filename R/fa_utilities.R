@@ -178,7 +178,7 @@ ffModelLM <- function(rets,ff_data,s=NULL,e=NULL,n=NULL){
 ffModelStepLM_sub <- function(y,ff_data, s=NULL, e=NULL, n=NULL){
     data <- ffMergeXTS(y,ff_data,s,e,n)
     mdl <- lm(y~Mkt.RF+SMB+HML+RMW+CMA+RF,data=data)
-    return(stepAIC(mdl, direction="both"))
+    return(stepAIC(mdl, direction="both",trace=0))
 }
 
 #' Generates list of lm models using step-wise regression
@@ -195,7 +195,7 @@ ffModelStepLM_sub <- function(y,ff_data, s=NULL, e=NULL, n=NULL){
 #' @examples
 #' ffModelStepLM(y,ff_data)
 
-ffModelStepLM <- function(y,ff_data, s=NULL, e=NULL, n=NULL){
+ffModelStepLM <- function(rets,ff_data, s=NULL, e=NULL, n=NULL){
     out <- lapply(rets, function(x) ffModelStepLM_sub(y=x,ff_data=ff_data,s=s,e=e,n=n))
     names(out) <- names(rets)
     return(out)
@@ -242,8 +242,8 @@ dateFilter <- function(xtsData,s=NULL,e=NULL,n=NULL){
 #' faCommonDate(rets)
 
 faCommonDate <- function(rets){
-    s<-as.Date(max(sapply(rets,start)))
-    e<-as.Date(min(sapply(rets,end)))
+    s<-as.Date(max(sapply(rets,start)), origin="1970-01-01")
+    e<-as.Date(min(sapply(rets,end)), origin="1970-01-01")
     out<-lapply(rets, function(x) x[paste0(s,"/",e)])
     return(out)
 }
@@ -271,6 +271,29 @@ ffMergeXTS <- function(y,ff_data,s=NULL,e=NULL,n=NULL){
     return(data[complete.cases(data),])
 }
 
+#' Align date indices of two XTS objects
+#'
+#' @param xts1 First xts object
+#' @param xts2 Second xts object
+#' @param s Start date
+#' @param e End date
+#' @param n Number of periods
+#'
+#' @return A list with two xts objects with the same dates.  
+#' @export
+#'
+#' @examples
+#' faAlignXTS(xts1, xts2)
+
+faAlignXTS <- function(xts1, xts2, s=NULL, e=NULL, n=NULL){
+    ncol1 <- ncol(xts1)
+    ncol2 <- ncol(xts2)
+    out <- merge.xts(xts1, xts2, join="inner")
+    out <- dateFilter(out, s, e, n)
+    out <- out[complete.cases(out),]
+    out <- list(out[,1:ncol1],out[,(ncol1+1):(ncol1+ncol2)])
+    return(out)
+}
 
 #' Coefficients from lm models
 #'
@@ -282,31 +305,77 @@ ffMergeXTS <- function(y,ff_data,s=NULL,e=NULL,n=NULL){
 #' @examples
 #' coefficients.lm(lst)
 
-coefficients.lm <- function(lst){
+coefficients_lm <- function(lst){
     temp <- t(sapply(lst,coefficients))
     row.names(temp)<-names(lst)
+    return(temp)
+}
+
+#' Coefficients from stepwise models
+#'
+#' @param lst List of stepwise models
+#'
+#' @return Table with coefficients for each model
+#' @export
+#'
+#' @examples
+#' coefficients.step(lst)
+
+coefficients_step <- function(lst){
+    # create a matrix to hold all results
+    mdl_coef <- matrix(0,nrow = length(lst), ncol=7)
+    row.names(mdl_coef)<-names(lst)
+    colnames(mdl_coef)<-c("(Intercept)","Mkt.RF","SMB","HML","RMW","CMA","RF")
+    for(i in 1:length(lst)){
+        mdl_coef[i,names(coefficients(lst[[i]]))]<-coefficients(lst[[i]])    
+    }
+    return(mdl_coef)
 }
 
 #' Returns based style anal
 #'
-#' @param y Fund returns
-#' @param ff_data Fama-French data
+#' @param r.fund Fund returns (xts)
+#' @param r.style Style returns (xts)
 #' @param s Start date
 #' @param e End date
 #' @param n Number of observations
 #' @param method Method from Factor Analyticss package's style.fit function
 #' @param leverage Leverage from Factor Analyticss package's style.fit function
 #'
-#' @return Style weights
+#' @return List of 3: weights, R.squared, and adj.R.squared
 #' @export
 #'
 #' @examples
-#' RBSA(y,ff_data)
-RBSA <- function(y,ff_data, s=NULL, e=Null, n=Null, method="constrained", leverage=FALSE){
-    data <- ffMergeXTS(y,ff_data,s,e,n)
-    out <- chart.Style(data$y,)
+#' RBSA(r.fund, r.style)
+
+RBSA <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE){
+    data <- faAlignXTS(r.fund, r.style, s, e, n)
+    out <- style.fit(data[[1]], data[[2]], method=method, leverage=leverage)
+    return(out)
 }
 
+#' RBSA over a rolling window
+#'
+#' @param r.fund Fund returns (xts)
+#' @param r.style  Style returns (xts)
+#' @param s Start date
+#' @param e End date
+#' @param n Number of Observations
+#' @param method Method from Factor Analyticss package's style.fit function
+#' @param leverage Leverage from Factor Analyticss package's style.fit function
+#' @param width Number of observations in a window
+#'
+#' @return xts object with one row per moving window containing the weights
+#' @export
+#'
+#' @examples
+#' RBSA_rolling(r.fund, r.style)
+
+RBSA_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, width=60){
+    data <- faAlignXTS(r.fund, r.style, s, e, n)
+    out <- table.RollingStyle(data[[1]],data[[2]], method=method, leverage=leverage,width = width)
+    return(out)
+}
 
 #' Scrape quote summary from Yahoo Finance
 #'

@@ -4,13 +4,13 @@
 \alias{RBSA}
 \title{Returns based style anal}
 \usage{
-RBSA(y, ff_data, s = NULL, e = Null, n = Null, method = "constrained",
-  leverage = FALSE)
+RBSA(r.fund, r.style, s = NULL, e = Null, n = Null,
+  method = "constrained", leverage = FALSE)
 }
 \arguments{
-\item{y}{Fund returns}
+\item{r.fund}{Fund returns (xts)}
 
-\item{ff_data}{Fama-French data}
+\item{r.style}{Style returns (xts)}
 
 \item{s}{Start date}
 
@@ -29,5 +29,5 @@ Style weights
 Returns based style anal
 }
 \examples{
-RBSA(y,ff_data)
+RBSA(r.fund, r.style)
 }

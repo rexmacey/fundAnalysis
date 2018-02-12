@@ -4,11 +4,9 @@
 \alias{ffModelStepLM}
 \title{Generates list of lm models using step-wise regression}
 \usage{
-ffModelStepLM(y, ff_data, s = NULL, e = NULL, n = NULL)
+ffModelStepLM(rets, ff_data, s = NULL, e = NULL, n = NULL)
 }
 \arguments{
-\item{y}{Fund returns}
-
 \item{ff_data}{Fama-French data}
 
 \item{s}{Start date}
@@ -16,6 +14,8 @@ ffModelStepLM(y, ff_data, s = NULL, e = NULL, n = NULL)
 \item{e}{End date}
 
 \item{n}{Number of periods}
+
+\item{y}{Fund returns}
 }
 \value{
 List of lm models

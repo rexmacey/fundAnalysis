@@ -2,7 +2,7 @@
 % Please edit documentation in R/fa_utilities.R
 \name{faCommonDate}
 \alias{faCommonDate}
-\title{Find common period between xts objects
+\title{Find common period between xts objects    
 Given a list of xts objects, it returns a list of those objects with the longest common period (starting at most recent start,
 and ending at earliest end)}
 \usage{
@@ -15,7 +15,7 @@ faCommonDate(rets)
 List of xts objects with common dates
 }
 \description{
-Find common period between xts objects
+Find common period between xts objects    
 Given a list of xts objects, it returns a list of those objects with the longest common period (starting at most recent start,
 and ending at earliest end)
 }

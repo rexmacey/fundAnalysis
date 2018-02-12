@@ -1,0 +1,187 @@
+---
+title: "Introduction to the fundAnalysis package"
+author: "Rex Macey"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to the fundAnalysis package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+This package helps analyze mutual funds and ETFs both of which are referred to as funds.  There is not much new to this package. Rather it brings together functions from several packages. 
+
+At this stage in the package development, the emphasis has been on collecting data and performing calculations.  Functions to present the information need to be written.
+
+```{r loadLibraries, echo=FALSE, message=FALSE}
+library(MASS, quietly = TRUE)
+library(quantmod, quietly = TRUE)
+library(readr, quietly = TRUE)
+library(rvest, quietly = TRUE)
+library(xts, quietly = TRUE)
+library(FactorAnalytics, quietly = TRUE)
+library(fundAnalysis, quietly = TRUE)
+```
+For illustrative purposes data has been loaded for funds with the following symbols.
+```{r showSymbols}
+# Data is provided for the following symbols
+print(symbols)
+```
+
+## Data installed with package
+Some data has been provided with the package to save time.  The commands to create the data objects are shown as comments.
+
+## Getting the Fama-French 5 factor model data  
+This data is used to calculate exposures to the Fama-French factors.  Future versions might have an option for the 3 factor model.  
+```{r retrieveFFData, cache=TRUE}
+# ff_datam <- download_FF_5_factor("M")
+# ff_datad <- download_FF_5_factor("D")
+
+# Monthly Fama-French data
+head(ff_datam)
+tail(ff_datam)
+# Daily Fama-French data
+head(ff_datad)
+tail(ff_datam)
+```
+
+## Retrieve price information for a set of symbols   
+The function to retrieve prices uses the quantmod package and returns an xts object with just the adjusted close values.  Price information is an intermediate step to calculating returns and for plotting price movements.
+```{r retrieveFundPrices, cache=TRUE}
+#prices_d <- getPrices(symbols,startDate="2012-12-31", freq="D")
+#prices_m <- getPrices(symbols,startDate="2012-12-31", freq="M")
+# Daily prices for a few of the funds
+head(prices_d)[,1:6]
+tail(prices_d)[,1:6]
+# Monthly prices for a few of the funds
+head(prices_m)[,1:6]
+tail(prices_m)[,1:6]
+```
+
+## Convert prices into returns    
+The convertPricesToReturns function calls the periodReturn function from quantmod.
+```{r convertPricesToReturns, cache=TRUE}
+# Daily returns of the funds - a list with one item per fund
+# First fund
+#rets_d <- convertPricesToReturns(prices_d, freq="D")
+#rets_m <- convertPricesToReturns(prices_d, freq="M")
+names(rets_d[1])
+head(rets_d[[1]])
+tail(rets_d[[1]])
+```
+
+## Summary information scraped from Yahoo Finance - a list with one item for each fund   
+The scrapeQuoteSummary function returns a list with an item for each symbol containing a character vector of the information found on the Quaote Summary tab of the Yahoo Finance page.
+```{r summaryInfo, cache=TRUE}
+#summary_data <- scrapeQuoteSummary(symbols)
+# Information for an ETF
+summary_data["FNDB"]
+# Information for a mutual fund
+summary_data["DFALX"]
+```
+
+## LM model for fund exposures to the Fama-French 5 factor model
+The *ffModelLM* function produces a linear regression model for each for each symbol and stores the result in a list.   Show are the details for two securities and a table of coefficents for all the symbols.
+
+```{r lmModels, warning=FALSE, comment="",message=FALSE}
+lm_listd <- ffModelLM(rets_d, ff_datad)
+
+print.mdl_list <- function(lm_list){
+    print("Summaries")
+    for (i in 1:2){
+        mdl <- lm_list[[i]]
+        print(names(lm_list[i]))
+        print(summary(mdl))
+    }
+}
+
+print.mdl_list(lm_listd)
+print(round(100*coefficients_lm(lm_listd),2))
+```
+
+## Stepwise model for fund exposures to the Fama-French 5 factor model
+The *ffModelLM* may return coefficient values not significantly different from zero.  Such a model may be overfit.  To reduce overfitting, we can run a stepwise regression.  The 
+
+```{r, stepModels, warning=FALSE, comment="", message=FALSE}
+step_listd <- ffModelStepLM(rets_d,ff_datad)
+print.mdl_list(lm_listd)
+print(round(100*coefficients_step(step_listd),2))
+```
+
+As an indication of how the stepwise regression simplifies the models which is an indication of less overfitting, there are `r sum(coefficients_lm(lm_listd)==0)` non-zero coefficients in the models without stepwise regression and `r sum(coefficients_step(step_listd)==0)` non-zero coefficients with stepwise regression.
+
+## More fun with models    
+
+R offers built-in functions to see the results of a linear model.  Above we saw the summary function.  A few more are presented here.
+
+```{r moreLMFunctions}
+mdl <- step_listd[[1]]
+print("Model coefficients")
+print(coefficients(mdl)) # just view the coefficients 
+print("Confidence interval of the coefficients at a specified level")
+print(confint(mdl,level=0.9)) # view the confidence interval of the coefficients
+print("The fitted (predicted) values - only first few displayed")
+print(head(fitted(mdl))) # show the fitted (predicted) values
+print("The residuals (errors) - only first few displayed")
+print(head(residuals(mdl)))  # show the residuals (errors)
+```
+
+## Style Analysis    
+Another way to look at the exposures of a fund is via returns-based style analysis (RBSA). RBSA regresses the returns of a fund against the returns of several other funds and constrains the coefficients to sum to 1.0.  We mainly use the FactorAnalysis package for this.  The *RBSA* function finds one set of coefficients using all the data.
+
+```{r RBSA_entire window}
+r.fund <- rets_d[[1]]
+colnames(r.fund)<-names(rets_d)[1]
+r.style <- merge.xts(rets_d[[10]],rets_d[[11]],rets_d[[13]],rets_d[[14]],rets_d[[23]],rets_d[[15]],rets_d[[16]])
+colnames(r.style)<-names(rets_d)[c(10,11,13,14,23,15,16)]
+RBSA_1 <- RBSA(r.fund,r.style)
+print(RBSA_1)
+```
+
+## RBSA - rolling window
+
+```{r RBSA_rolling window}
+RBSA_window<-RBSA_rolling(r.fund,r.style,method="constrained", width = 63)
+head(RBSA_window)
+autoplot(RBSA_window, main = "RBSA for FNDB")
+```
+
+***********************
+Below was automatically inserted when this vignette was created and kept for instructional purposes.    
+
+
+## Figures
+
+The figure sizes have been customised so that you can easily put two images side-by-side. 
+
+```{r, fig.show='hold'}
+plot(1:10)
+plot(10:1)
+```
+
+You can enable figure captions by `fig_caption: yes` in YAML:
+
+    output:
+      rmarkdown::html_vignette:
+        fig_caption: yes
+
+Then you can use the chunk option `fig.cap = "Your figure caption."` in **knitr**.
+
+## More Examples
+
+You can write math expressions, e.g. $Y = X\beta + \epsilon$, footnotes^[A footnote here.], and tables, e.g. using `knitr::kable()`.
+
+```{r, echo=FALSE, results='asis'}
+knitr::kable(head(mtcars, 10))
+```
+
+Also a quote using `>`:
+
+> "He who gives up [code] safety for [code] speed deserves neither."
+([via](https://twitter.com/hadleywickham/status/504368538874703872))
