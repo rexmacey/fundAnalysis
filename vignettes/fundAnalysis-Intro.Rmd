@@ -25,8 +25,10 @@ library(quantmod, quietly = TRUE)
 library(readr, quietly = TRUE)
 library(rvest, quietly = TRUE)
 library(xts, quietly = TRUE)
+library(ggplot2, quietly = TRUE)
 library(FactorAnalytics, quietly = TRUE)
 library(fundAnalysis, quietly = TRUE)
+library(PerformanceAnalytics, quietly = TRUE)
 ```
 For illustrative purposes data has been loaded for funds with the following symbols.
 ```{r showSymbols}
@@ -147,9 +149,24 @@ print(RBSA_1)
 ## RBSA - rolling window
 
 ```{r RBSA_rolling window}
-RBSA_window<-RBSA_rolling(r.fund,r.style,method="constrained", width = 63)
+RBSA_window <- RBSA_rolling(r.fund,r.style,method="constrained", width = 63)
 head(RBSA_window)
+summary(RBSA_window)
 autoplot(RBSA_window, main = "RBSA for FNDB")
+boxplot(as.data.frame(RBSA_window), col="blue", main="Style Weights for FNDB", ylim=c(0,1))
+```
+
+# Standard performance measurement    
+This is mostly from the PerformanceAnalytics package.  
+
+```{r traditionalPerformance}
+table.AnnualizedReturns(cbind(r.fund,r.style))
+table.TrailingPeriods(r.fund)
+table.Stats(cbind(r.fund,r.style))
+table.Drawdowns(r.fund)
+table.Variability(cbind(r.fund,r.style))
+table.Correlation(r.fund,r.style)
+TrackingError(r.fund,r.style)*sqrt(252)
 ```
 
 ***********************

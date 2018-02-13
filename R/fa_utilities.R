@@ -5,7 +5,99 @@ library(MASS, quietly = TRUE)
 library(FactorAnalytics, quietly = TRUE)
 library(rvest, quietly = TRUE)
 
-#' Download Fama-French 5 factor monthly data
+#' Converts prices to returns    
+#'
+#' @param prices xts of prices such as returned by getPrices function
+#' @param freq M for monthly, or D for daily
+#'
+#' @return xts object of returns
+#' @export
+#'
+#' @examples
+#' convertPricesToReturns(p)
+
+convertPricesToReturns <- function(prices, freq="D"){
+    if(toupper(freq)=="D") {
+        rets <- lapply(1:ncol(prices),function(x) periodReturn(prices[,x],period="daily", leading=TRUE))
+        
+    } else {
+        rets <- lapply(1:ncol(prices),function(x) periodReturn(prices[,x],period="monthly", leading=TRUE))
+    }
+    rets <- lapply(rets,function(x) x[-1]) # remove first row which is 0
+    names(rets) <- colnames(prices)
+    return(rets)
+}
+
+#' Filter (subset) an xts object
+#' Subsets an xts object from start (s) to end (e).  If either is omitted, the earliest or latest observation is used
+#' If n is not null it will return n observations from the last date (e).
+#'
+#' @param xtsData xts object to be filtered (subsetted) 
+#' @param s Start date
+#' @param e End date
+#' @param n Number of observations
+#'
+#' @return xts object
+#' @export
+#'
+#' @examples
+#' dateFilter(xtsOjbect,s="2012-12-31",e="2017-12-31")
+#' dateFilter(xtsOjbect,e="2017-12-31", n=60)
+
+dateFilter <- function(xtsData,s=NULL,e=NULL,n=NULL){
+    if(is.null(s)) s<- start(xtsData[1])
+    if(is.null(e)) e<- end(xtsData)
+    data <- xtsData[paste0(s,"/",e)]
+    if(!is.null(n)){
+        data<-last(data,n)
+    }
+    return(data)
+}
+
+#' Define a benchmark    
+#' A benchmark is used to compare the performance of a fund against. A benchmark may be a single symbol with a weight of 1,
+#' or a blend of multiple symbols (a vector) 
+#'
+#' @param shortName A short name used much the way a symbol (ticker) might be used as a column head.
+#' @param description A longer description of the benchmark (e.g., 50% S&P 500 / 50% Barclay's Agg)
+#' @param symbol A symbol (ticker) or character vector of symbols 
+#' @param weights Weights of the symbol(s). Length must match the symbol
+#' @param startDate Start date to get the prices for the benchmarks
+#' @param freq Frequency of returns for the benchmark ("M" or "D")
+#'
+#' @return List with information about the benchmark
+#' @export
+#'
+#' @examples
+#' defineBenchmark("SP500","S&P 500 ETF", "SPY", 1)
+#' defineBenchmark("Bench","50% S&P 500 / 50% Barclay's Agg", c("SPY","AGG"), c(0.5,0.5))
+
+defineBenchmark <- function(shortName="Bench", description="Benchmark", symbol=NULL, weights=1,
+                            startDate="1970-01-01", freq="M"){
+    if(length(symbol)!=length(weights)) stop("Error in defineBenchmark: length of symbol is not equal to length of weights.")
+    out <- list()
+    out$shortName <- shortName
+    out$description <- description
+    out$symbol <- symbol
+    out$weights <- weights/sum(weights)
+    p <- getPrices(symbol, startDate, freq)
+    r <- convertPricesToReturns(p, freq)
+    r <- faCommonDate(r, freq)
+    r.matrix <- matrix(unlist(r),ncol=length(r))
+    r.xts <- xts(r.matrix,order.by = index(r[[1]]))
+    colnames(r.xts) <- names(r)
+    if(length(symbol)==1){
+        out$returns <- r.xts
+    } else {
+        b.ret <- t(apply(r.xts,1,function(x) x*weights))
+        out$returns <- xts(apply(b.ret,1,sum), order.by = index(r.xts))
+        colnames(out$returns)<-shortName
+    }
+    
+    return(out)
+}
+
+#' Download Fama-French 5 factor monthly     
 #' source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip
 #' 
 #' @return xts object with monthly data for Fama-French model
@@ -26,7 +118,7 @@ download_FF_5_factor_monthly <- function(){
     return(ff_data[,-1])
 }
 
-#' Download Fama-French 5 factor daily data
+#' Download Fama-French 5 factor daily data    
 #' source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip
 #' 
 #' @return xts object with daily data for Fama-French model
@@ -45,7 +137,7 @@ download_FF_5_factor_daily <- function(){
     return(ff_data)
 }
 
-#' Download Fama-French 5 factor model data from Ken French website
+#' Download Fama-French 5 factor model data from Ken French website    
 #'
 #' @param freq Either "M" for monthly data or "D" for daily data
 #'
@@ -65,64 +157,8 @@ download_FF_5_factor <- function(freq="M"){
     return(out)
 }
 
-#' Get prices for one or more symbols
-#' 
-#'
-#' @param symbols Tickers of the mutual funds and ETFs
-#' @param startDate default is 1970-01-01
-#' @param freq M for monthly or D for daily
-#'
-#' @return xts object with prices. Index will be yearmon for monthly data
-#' @export
-#'
-#' @examples
-#' getPrices("IVV")
-#' getPrices("IVV", startDate="2015-12-31", freq="D")
 
-getPrices <- function(symbols, startDate="1970-01-01", freq="M"){
-    Sys.setenv(TZ="UTC")
-    getSymbols(symbols,warnings=FALSE, from=startDate)
-    data<-xts(frequency = "Date")
-    for (symbol in symbols){
-        #cat(symbol," ... ")
-        data<-merge(data,Ad(get(symbol)))
-    }
-    index(data) <- as.Date(index(data))
-    saveRDS(data,"prices.rds")
-    data<-readRDS("prices.rds")
-    colnames(data) <- sapply(colnames(data),function(x) substr(x,1,regexpr("\\.",x)-1))
-    colnames(data) <- symbols
-    if(toupper(freq) != "D"){
-        mon_idx <- endpoints(data, on="months")
-        data <- data[mon_idx,]
-        index(data)<-as.yearmon(index(data),"%Y-%m-%d")
-    }
-    return(data)
-}
-
-#' Converts prices to returns
-#'
-#' @param prices xts of prices such as returned by getPrices function
-#' @param freq M for monthly, or D for daily
-#'
-#' @return xts object of returns
-#' @export
-#'
-#' @examples
-#' convertPricesToReturns(p)
-
-convertPricesToReturns <- function(prices, freq="D"){
-    if(toupper(freq)=="D") {
-        rets <- lapply(1:ncol(prices),function(x) periodReturn(prices[,x],period="daily"))
-        
-    } else {
-        rets <- lapply(1:ncol(prices),function(x) periodReturn(prices[,x],period="monthly"))
-    }
-    names(rets) <- colnames(prices)
-    return(rets)
-}
-
-#' Generates individual lm model for a fund using Fama-French data
+#' Generates individual lm model for a fund using Fama-French data    
 #' Not public.  
 #'
 #' @param y Returns of fund
@@ -142,7 +178,7 @@ ffModelLM_sub <- function(y,ff_data,s=NULL,e=NULL,n=NULL){
     return(mdl)
 }
 
-#' Generates lm models for one or more funds using Fama-French data as independent variables
+#' Generates lm models for one or more funds using Fama-French data as independent variables    
 #'
 #' @param rets List of returns such as generated by convertPricesToReturns()
 #' @param ff_data Fama-French data in same frequency as Y
@@ -201,39 +237,12 @@ ffModelStepLM <- function(rets,ff_data, s=NULL, e=NULL, n=NULL){
     return(out)
 }
 
-
-#' Filter (subset) an xts object
-#' Subsets an xts object from start (s) to end (e).  If either is omitted, the earliest or latest observation is used
-#' If n is not null it will return n observations from the last date (e).
-#'
-#' @param xtsData xts object to be filtered (subsetted) 
-#' @param s Start date
-#' @param e End date
-#' @param n Number of observations
-#'
-#' @return xts object
-#' @export
-#'
-#' @examples
-#' dateFilter(xtsOjbect,s="2012-12-31",e="2017-12-31")
-#' dateFilter(xtsOjbect,e="2017-12-31", n=60)
-
-dateFilter <- function(xtsData,s=NULL,e=NULL,n=NULL){
-    if(is.null(s)) s<- start(xtsData[1])
-    if(is.null(e)) e<- end(xtsData)
-    data <- xtsData[paste0(s,"/",e)]
-    if(!is.null(n)){
-        data<-last(data,n)
-    }
-    return(data)
-}
-
-
 #' Find common period between xts objects    
 #' Given a list of xts objects, it returns a list of those objects with the longest common period (starting at most recent start,
 #' and ending at earliest end)
 #'
 #' @param rets List of xts objects
+#' @param freq "M" for monthly, "D" for daily
 #'
 #' @return List of xts objects with common dates
 #' @export
@@ -241,10 +250,14 @@ dateFilter <- function(xtsData,s=NULL,e=NULL,n=NULL){
 #' @examples
 #' faCommonDate(rets)
 
-faCommonDate <- function(rets){
-    s<-as.Date(max(sapply(rets,start)), origin="1970-01-01")
-    e<-as.Date(min(sapply(rets,end)), origin="1970-01-01")
-    out<-lapply(rets, function(x) x[paste0(s,"/",e)])
+faCommonDate <- function(rets, freq="M"){
+    s<-max(sapply(rets,start))
+    e<-min(sapply(rets,end))
+    if(toupper(freq)=="M"){
+        out<-lapply(rets, function(x) x[paste0(yearmon(s),"/",yearmon(e))])    
+    } else {
+        out<-lapply(rets, function(x) x[paste0(as.Date(s, origin="1970-01-01"),"/",as.Date(e, origin="1970-01-01"))])
+    }
     return(out)
 }
 
@@ -271,7 +284,8 @@ ffMergeXTS <- function(y,ff_data,s=NULL,e=NULL,n=NULL){
     return(data[complete.cases(data),])
 }
 
-#' Align date indices of two XTS objects
+
+#' Align date indices of two xts objects
 #'
 #' @param xts1 First xts object
 #' @param xts2 Second xts object
@@ -279,19 +293,22 @@ ffMergeXTS <- function(y,ff_data,s=NULL,e=NULL,n=NULL){
 #' @param e End date
 #' @param n Number of periods
 #'
-#' @return A list with two xts objects with the same dates.  
+#' @return List with two xts objects with the same indices
 #' @export
 #'
 #' @examples
 #' faAlignXTS(xts1, xts2)
-
-faAlignXTS <- function(xts1, xts2, s=NULL, e=NULL, n=NULL){
+faAlignXTS <- function(xts1,
+                       xts2,
+                       s = NULL,
+                       e = NULL,
+                       n = NULL) {
     ncol1 <- ncol(xts1)
     ncol2 <- ncol(xts2)
-    out <- merge.xts(xts1, xts2, join="inner")
+    out <- merge.xts(xts1, xts2, join = "inner")
     out <- dateFilter(out, s, e, n)
-    out <- out[complete.cases(out),]
-    out <- list(out[,1:ncol1],out[,(ncol1+1):(ncol1+ncol2)])
+    out <- out[complete.cases(out), ]
+    out <- list(out[, 1:ncol1], out[, (ncol1 + 1):(ncol1 + ncol2)])
     return(out)
 }
 
@@ -332,7 +349,7 @@ coefficients_step <- function(lst){
     return(mdl_coef)
 }
 
-#' Returns based style anal
+#' Returns based style analysis    
 #'
 #' @param r.fund Fund returns (xts)
 #' @param r.style Style returns (xts)
@@ -386,6 +403,7 @@ RBSA_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constr
 #'
 #' @examples
 #' scrapeQuoteSummary("SPY")
+
 scrapeQuoteSummary <- function(symbol){
     url <- paste0("https://finance.yahoo.com/quote/",symbol,"?p=",symbol)
     webpage <- read_html(url)
@@ -397,4 +415,39 @@ scrapeQuoteSummary <- function(symbol){
     out <-  c(symbol,fundName, result[[1]]$X2,result[[2]]$X2)
     names(out)<-c("Symbol","Fund Name",result[[1]]$X1,result[[2]]$X1)
     return(out)
+}
+
+
+#' Get prices for one or more symbols    
+#'
+#' @param symbols Tickers of the mutual funds and ETFs
+#' @param startDate default is 1970-01-01
+#' @param freq M for monthly or D for daily
+#' @param endDate default is today's date (Sys.Date)
+#'
+#' @return xts object with prices. Index will be yearmon for monthly data
+#' @export
+#'
+#' @examples
+#' getPrices("IVV")
+#' getPrices("IVV", startDate="2015-12-31", freq="D")
+
+getPrices <- function(symbols, startDate="1970-01-01", freq="M", endDate=Sys.Date()){
+    Sys.setenv(TZ="UTC")
+    getSymbols(symbols,warnings=FALSE, from=startDate, to=endDate)
+    data<-xts(frequency = "Date")
+    for (symbol in symbols){
+        #cat(symbol," ... ")
+        data<-merge(data,Ad(get(symbol)))
+    }
+    index(data) <- as.Date(index(data))
+    data <- na.omit(data)
+    #colnames(data) <- sapply(colnames(data),function(x) substr(x,1,regexpr("\\.",x)-1))
+    colnames(data) <- symbols
+    if(toupper(freq) != "D"){
+        mon_idx <- endpoints(data, on="months")
+        data <- data[mon_idx,]
+        index(data)<-as.yearmon(index(data),"%Y-%m-%d")
+    }
+    return(data)
 }

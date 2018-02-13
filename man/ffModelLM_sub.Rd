@@ -2,7 +2,7 @@
 % Please edit documentation in R/fa_utilities.R
 \name{ffModelLM_sub}
 \alias{ffModelLM_sub}
-\title{Generates individual lm model for a fund using Fama-French data
+\title{Generates individual lm model for a fund using Fama-French data    
 Not public.}
 \usage{
 ffModelLM_sub(y, ff_data, s = NULL, e = NULL, n = NULL)
@@ -22,7 +22,7 @@ ffModelLM_sub(y, ff_data, s = NULL, e = NULL, n = NULL)
 lm model
 }
 \description{
-Generates individual lm model for a fund using Fama-French data
+Generates individual lm model for a fund using Fama-French data    
 Not public.
 }
 \examples{

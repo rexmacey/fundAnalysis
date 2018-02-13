@@ -4,7 +4,8 @@
 \alias{getPrices}
 \title{Get prices for one or more symbols}
 \usage{
-getPrices(symbols, startDate = "1970-01-01", freq = "M")
+getPrices(symbols, startDate = "1970-01-01", freq = "M",
+  endDate = Sys.Date())
 }
 \arguments{
 \item{symbols}{Tickers of the mutual funds and ETFs}
@@ -12,6 +13,8 @@ getPrices(symbols, startDate = "1970-01-01", freq = "M")
 \item{startDate}{default is 1970-01-01}
 
 \item{freq}{M for monthly or D for daily}
+
+\item{endDate}{default is today's date (Sys.Date)}
 }
 \value{
 xts object with prices. Index will be yearmon for monthly data

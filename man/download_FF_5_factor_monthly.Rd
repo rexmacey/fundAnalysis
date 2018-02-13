@@ -2,7 +2,7 @@
 % Please edit documentation in R/fa_utilities.R
 \name{download_FF_5_factor_monthly}
 \alias{download_FF_5_factor_monthly}
-\title{Download Fama-French 5 factor monthly data
+\title{Download Fama-French 5 factor monthly     
 source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip}
 \usage{
 download_FF_5_factor_monthly()
@@ -11,7 +11,7 @@ download_FF_5_factor_monthly()
 xts object with monthly data for Fama-French model
 }
 \description{
-Download Fama-French 5 factor monthly data
+Download Fama-French 5 factor monthly     
 source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip
 }
 \examples{

@@ -1,0 +1,57 @@
+---
+title: "Fund Report"
+author: "Rex Macey"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fund Report}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "",
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+```{r initialize, echo=FALSE, message=FALSE}
+# User defined input goes here
+fundSymbol <- "FNDE"
+nbenchmark <- 2
+runSections <- list(summary=TRUE, performance = TRUE, famaFrench = TRUE)
+
+```
+```{r loadLibraries, echo=FALSE}
+library(knitr)
+library(MASS, quietly = TRUE)
+library(quantmod, quietly = TRUE)
+library(readr, quietly = TRUE)
+library(rvest, quietly = TRUE)
+library(xts, quietly = TRUE)
+library(ggplot2, quietly = TRUE)
+library(FactorAnalytics, quietly = TRUE)
+library(fundAnalysis, quietly = TRUE)
+library(PerformanceAnalytics, quietly = TRUE)
+```
+```{r getData}
+
+
+```
+
+`r if(runSections$summary)## Fund summary    `
+```{r fundSummary, eval=runSections$summary}
+quoteSummary <- scrapeQuoteSummary(fundSymbol)
+kable(quoteSummary, caption = "Basic information")    
+```
+`r if(!runSections$summary)"## not run    "`
+
+## End
+```{r}
+
+```
+
+

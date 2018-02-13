@@ -2,7 +2,7 @@
 % Please edit documentation in R/fa_utilities.R
 \name{download_FF_5_factor_daily}
 \alias{download_FF_5_factor_daily}
-\title{Download Fama-French 5 factor daily data
+\title{Download Fama-French 5 factor daily data    
 source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip}
 \usage{
 download_FF_5_factor_daily()
@@ -11,7 +11,7 @@ download_FF_5_factor_daily()
 xts object with daily data for Fama-French model
 }
 \description{
-Download Fama-French 5 factor daily data
+Download Fama-French 5 factor daily data    
 source: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip
 }
 \examples{

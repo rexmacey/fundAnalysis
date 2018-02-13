@@ -6,10 +6,12 @@
 Given a list of xts objects, it returns a list of those objects with the longest common period (starting at most recent start,
 and ending at earliest end)}
 \usage{
-faCommonDate(rets)
+faCommonDate(rets, freq = "M")
 }
 \arguments{
 \item{rets}{List of xts objects}
+
+\item{freq}{"M" for monthly, "D" for daily}
 }
 \value{
 List of xts objects with common dates
