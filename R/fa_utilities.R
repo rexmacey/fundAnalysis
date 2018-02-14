@@ -87,11 +87,11 @@ defineBenchmark <- function(shortName="Bench", description="Benchmark", symbol=N
     r.xts <- xts(r.matrix,order.by = index(r[[1]]))
     colnames(r.xts) <- names(r)
     if(length(symbol)==1){
-        out$returns <- r.xts
+        out$returns.daily <- r.xts
     } else {
         b.ret <- t(apply(r.xts,1,function(x) x*weights))
-        out$returns <- xts(apply(b.ret,1,sum), order.by = index(r.xts))
-        colnames(out$returns)<-shortName
+        out$returns.daily <- xts(apply(b.ret,1,sum), order.by = index(r.xts))
+        colnames(out$returns.daily)<-shortName
     }
     
     return(out)
@@ -450,4 +450,28 @@ getPrices <- function(symbols, startDate="1970-01-01", freq="M", endDate=Sys.Dat
         index(data)<-as.yearmon(index(data),"%Y-%m-%d")
     }
     return(data)
+}
+
+#' Get prices and returns for a set of symbols
+#'
+#' @param symbols List of symbols
+#' @param startDate Start date, default is 1970-01-01
+#' @param endDate End date, default is today's date Sys.Date()
+#'
+#' @return List of 3 items. Prices is an xts object with one column per symbol. returns.daily 
+#' is a list with one item per symbol containing daily returns.  returns.monthly contains the monthly returns.
+#' @export
+#'
+#' @examples
+#' getPricesAndReturns(c("FNDB","IVV","SPY"))
+
+getPricesAndReturns <- function(symbols, startDate="1970-01-01", endDate=SysDate()){
+    p <- getPrices(symbols, startDate, freq = "D", endDate)
+    r.daily <- convertPricesToReturns(p, freq="D")
+    r.monthly <- convertPricesToReturns(p, freq="M")
+    out<-list()
+    out$prices <- p
+    out$returns.daily <- r.daily
+    out$returns.monthly <- r.monthly
+    return(out)
 }
