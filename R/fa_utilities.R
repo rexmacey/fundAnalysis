@@ -4,13 +4,14 @@ library(quantmod, quietly=TRUE)
 library(MASS, quietly = TRUE)
 library(FactorAnalytics, quietly = TRUE)
 library(rvest, quietly = TRUE)
+library(RQuantLib, quietly = TRUE)
 
 #' Converts prices to returns    
 #'
 #' @param prices xts of prices such as returned by getPrices function
 #' @param freq M for monthly, or D for daily
 #'
-#' @return xts object of returns
+#' @return List with xts object of returns
 #' @export
 #'
 #' @examples
@@ -22,9 +23,13 @@ convertPricesToReturns <- function(prices, freq="D"){
         
     } else {
         rets <- lapply(1:ncol(prices),function(x) periodReturn(prices[,x],period="monthly", leading=TRUE))
+        rets <- lapply(rets, function(x) makeCompleteMonths(x))
     }
     rets <- lapply(rets,function(x) x[-1]) # remove first row which is 0
     names(rets) <- colnames(prices)
+    for(i in 1:length(rets)){
+        colnames(rets[[i]]) <- names(rets)[i]
+    }
     return(rets)
 }
 
@@ -80,20 +85,32 @@ defineBenchmark <- function(shortName="Bench", description="Benchmark", symbol=N
     out$description <- description
     out$symbol <- symbol
     out$weights <- weights/sum(weights)
-    p <- getPrices(symbol, startDate, freq)
-    r <- convertPricesToReturns(p, freq)
-    r <- faCommonDate(r, freq)
-    r.matrix <- matrix(unlist(r),ncol=length(r))
-    r.xts <- xts(r.matrix,order.by = index(r[[1]]))
-    colnames(r.xts) <- names(r)
+    p <- getPrices(symbol, startDate, "D")
+    r.daily <- convertPricesToReturns(p, "D")
+    r.monthly <- convertPricesToReturns(p, "M")
+    r.daily <- faCommonDate(r.daily, "D")
+    r.monthly <- faCommonDate(r.monthly, "M")
+    
+    r.matrix.daily <- matrix(unlist(r.daily),ncol=length(r.daily))
+    r.xts.daily <- xts(r.matrix.daily,order.by = index(r.daily[[1]]))
+    colnames(r.xts.daily) <- names(r.daily)
     if(length(symbol)==1){
-        out$returns.daily <- r.xts
+        out$returns.daily <- r.xts.daily
     } else {
-        b.ret <- t(apply(r.xts,1,function(x) x*weights))
-        out$returns.daily <- xts(apply(b.ret,1,sum), order.by = index(r.xts))
+        b.ret <- t(apply(r.xts.daily,1,function(x) x*weights))
+        out$returns.daily <- xts(apply(b.ret,1,sum), order.by = index(r.xts.daily))
         colnames(out$returns.daily)<-shortName
     }
-    
+    r.matrix.monthly <- matrix(unlist(r.monthly),ncol=length(r.monthly))
+    r.xts.monthly <- xts(r.matrix.monthly,order.by = index(r.monthly[[1]]))
+    colnames(r.xts.monthly) <- names(r.monthly)
+    if(length(symbol)==1){
+        out$returns.monthly <- r.xts.monthly
+    } else {
+        b.ret <- t(apply(r.xts.monthly,1,function(x) x*weights))
+        out$returns.monthly <- xts(apply(b.ret,1,sum), order.by = index(r.xts.monthly))
+        colnames(out$returns.monthly)<-shortName
+    }
     return(out)
 }
 
@@ -253,11 +270,7 @@ ffModelStepLM <- function(rets,ff_data, s=NULL, e=NULL, n=NULL){
 faCommonDate <- function(rets, freq="M"){
     s<-max(sapply(rets,start))
     e<-min(sapply(rets,end))
-    if(toupper(freq)=="M"){
-        out<-lapply(rets, function(x) x[paste0(yearmon(s),"/",yearmon(e))])    
-    } else {
-        out<-lapply(rets, function(x) x[paste0(as.Date(s, origin="1970-01-01"),"/",as.Date(e, origin="1970-01-01"))])
-    }
+    out<-lapply(rets, function(x) x[paste0(as.Date(s, origin="1970-01-01"),"/",as.Date(e, origin="1970-01-01"))])
     return(out)
 }
 
@@ -465,13 +478,28 @@ getPrices <- function(symbols, startDate="1970-01-01", freq="M", endDate=Sys.Dat
 #' @examples
 #' getPricesAndReturns(c("FNDB","IVV","SPY"))
 
-getPricesAndReturns <- function(symbols, startDate="1970-01-01", endDate=SysDate()){
-    p <- getPrices(symbols, startDate, freq = "D", endDate)
-    r.daily <- convertPricesToReturns(p, freq="D")
-    r.monthly <- convertPricesToReturns(p, freq="M")
+getPricesAndReturns <- function(symbols, startDate="1970-01-01", endDate=Sys.Date()){
     out<-list()
-    out$prices <- p
-    out$returns.daily <- r.daily
-    out$returns.monthly <- r.monthly
+    out$prices <- getPrices(symbols, startDate, freq = "D", endDate)
+    out$returns.daily <- convertPricesToReturns(out$prices, freq="D")
+    out$returns.monthly <- convertPricesToReturns(out$prices, freq="M")
     return(out)
+}
+
+#' Makes sure the last month in an xts object is a full trading month    
+#' This is used when converting to monthly returns. If the last price was not at the end 
+#' of a month (e.g. 2/13/2018) a return will still be produced for that month (Feb 2018). 
+#' We may not want to use a partial month for some calculations such as when calculating
+#' the return for the last x months, so we eliminate those types of months.  
+#'
+#' @param x xts object
+#'
+#' @return xts object
+#'
+#' @examples
+#' makeCompleteMonths(x)
+
+makeCompleteMonths <- function(x){
+    if(! isEndOfMonth("UnitedStates/NYSE",end(x))) x<-x[1:(length(x)-1)] # from RQuantLib package
+    return(x)
 }
