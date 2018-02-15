@@ -11,7 +11,7 @@ library(RQuantLib, quietly = TRUE)
 #' @param prices xts of prices such as returned by getPrices function
 #' @param freq M for monthly, or D for daily
 #'
-#' @return List with xts object of returns
+#' @return If ncol(prices)==1, an xts object, else a list with xts object of returns
 #' @export
 #'
 #' @examples
@@ -30,6 +30,7 @@ convertPricesToReturns <- function(prices, freq="D"){
     for(i in 1:length(rets)){
         colnames(rets[[i]]) <- names(rets)[i]
     }
+    if(length(rets)==1) rets <- rets[[1]]
     return(rets)
 }
 
@@ -503,3 +504,25 @@ makeCompleteMonths <- function(x){
     if(! isEndOfMonth("UnitedStates/NYSE",end(x))) x<-x[1:(length(x)-1)] # from RQuantLib package
     return(x)
 }
+
+
+#' Get price and returns for 13 Week Treasury Bills    
+#'
+#' @return List with 3 xts objects, prices, returns.daily, and returns.monthly
+#' @export
+#'
+#' @examples
+#' getRiskFree()
+getRiskFree <- function(){
+    out <- list()
+    rf.yld <- getSymbols("^IRX",freq="M") # retrieve 13 Week TBill yields annualized
+    rf.yld <- Ad(IRX) # keep adjusted close
+    rf.yld <- na.omit(rf.yld) # remove NAs
+    colnames(rf.yld) <- "TBILL"
+    rf.yld <- (1+rf.yld)^(1/252) # convert to daily yield +1
+    out$prices <- cumprod(rf.yld)
+    out$returns.daily<-convertPricesToReturns(out$prices,"D")
+    out$returns.monthly<-convertPricesToReturns(out$prices,"M")
+    return(out)
+}
+
