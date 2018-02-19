@@ -508,18 +508,18 @@ makeCompleteMonths <- function(x){
 
 #' Get price and returns for 13 Week Treasury Bills    
 #'
-#' @return List with 3 xts objects, prices, returns.daily, and returns.monthly
+#' @return List with 4 xts objects: yield, prices, returns.daily, and returns.monthly
 #' @export
 #'
 #' @examples
 #' getRiskFree()
 getRiskFree <- function(){
     out <- list()
-    rf.yld <- getSymbols("^IRX",freq="M") # retrieve 13 Week TBill yields annualized
-    rf.yld <- Ad(IRX) # keep adjusted close
-    rf.yld <- na.omit(rf.yld) # remove NAs
-    colnames(rf.yld) <- "TBILL"
-    rf.yld <- (1+rf.yld)^(1/252) # convert to daily yield +1
+    out$yield <- getSymbols("^IRX",freq="M") # retrieve 13 Week TBill yields annualized
+    out$yield <- Ad(IRX) # keep adjusted close
+    out$yield <- na.omit(out$yield)/100 # remove NAs and convert to decimal 
+    colnames(out$yield) <- "TBILL"
+    rf.yld <- (1+out$yield)^(1/252) # convert to daily yield +1
     out$prices <- cumprod(rf.yld)
     out$returns.daily<-convertPricesToReturns(out$prices,"D")
     out$returns.monthly<-convertPricesToReturns(out$prices,"M")
