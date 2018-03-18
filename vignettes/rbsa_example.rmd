@@ -1,0 +1,123 @@
+---
+title: "DRAFT: Applying RBSA to Smart Beta"
+author: "Red Tortoise, LLC"
+date: "March 18, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = "", message = FALSE, warning = FALSE)
+```
+### Introduction
+Sharpe (1988[^1], 1992[^2]) and Lucas and Riepe (1996[^3]) describes a method of determining a funds allocation to asset classes and or styles.  We use this technique to access the exposure of one or more funds to "Smart Betas".  Given a set of exposures to these betas and expected returns of the betas, we can produce an expected return for a fund.   
+
+### Technical note
+Rather than simply minimizing the sum of the squares of the error of a constrained regression, we employ stepwise regression to identify the model with the minimum AIC value via the [FactorAnalytics](https://rdrr.io/rforge/FactorAnalytics/) package in R. We use the [Akaike Information Criterion](https://en.wikipedia.org/wiki/Akaike_information_criterion) as a means of variable reduction to reduce overfitting.  
+
+### The Funds
+
+```{r createTestData, echo=FALSE, warning=FALSE}
+library(knitr)
+source("../R/fa_utilities.r", echo=FALSE)
+load("../data/rets_m.rda")
+symbols <- names(rets_m)
+load("../data/summary_data.rda")
+style.symbols <- c("IWD","IWF","IWO","IWN","QUAL")
+
+idx.fund <- 1
+idx.style <- c(10,11,13,14,23,15,16)
+
+r.fund <- rets_m[[1]]
+colnames(r.fund)<-names(rets_m)[1]
+r.style <- merge.xts(rets_m[[10]],rets_m[[11]],rets_m[[13]],rets_m[[14]],rets_m[[23]],rets_m[[15]],rets_m[[16]])
+colnames(r.style)<-names(rets_m)[c(10,11,13,14,23,15,16)]
+data <- faAlignXTS(r.fund, r.style)
+```
+We will analyze the returns of `r summary_data[[idx.fund]]["Fund Name"]` (`r names(r.fund)`) (i.e., the y variable, the dependent variable ).  To explain the returns of this fund we will use the following:
+
+```{r}
+tbl <- cbind(colnames(r.style),sapply(idx.style, function(x) summary_data[[x]]["Fund Name"]))
+row.names(tbl)<-NULL
+kable(tbl, col.names=c("Ticker","Name"), caption="Explanatory Funds (x, independent variables)")
+```
+
+### The Entire Window
+
+Using the longest common period among the funds gives us data from `r start(data[[1]])` through `r end(data[[1]])`. We use this period to find the average exposures.   
+```{r RBSA_entire window, message=FALSE}
+
+rbsa <- rbsa(r.fund, r.style, selection = "AIC")
+kable(round(100*rbsa$weights,2), col.names = "Weight",caption = "Average Weights (%)")
+kable(round(rbsa$regStats,4),col.names = "Regression Stats")
+tbl <- rbind(rbsa$fundReturn,rbsa$benchReturn,rbsa$excessReturn)
+row.names(tbl) <- c("Fund", "Benchmark", "Excess")
+colnames(tbl) <- "Return"
+kable(round(100*tbl,2), caption="Returns (%)")
+```
+
+### Rolling Analysis
+
+Next we look at the consistency of the exposures (weights) by using rolling 30 month analysis.
+
+```{r}
+windowWidth <- 30
+RBSA_window <- rbsa_rolling(r.fund, r.style, method="constrained", width = windowWidth)
+summary(round(RBSA_window$weights*100,2))
+boxplot(as.data.frame(RBSA_window$weights), col="blue", main="Style Weights for FNDB", ylim=c(0,1))
+plot.xts(RBSA_window$weights, legend.loc = "left", major.ticks = NULL,ylim=c(0,1))
+par(mfrow=c(1,1))
+plot(RBSA_window$regressStats$RSquared, main="Rolling R-Squared")
+plot(RBSA_window$regressStats$TE, main="Rolling Tracking Error")
+plot(RBSA_window$regressStats$MAE, main ="Rolling Mean Absolute Error (MAE)")
+plot(RBSA_window$regressStats$RMSE, main = "Rolling Root Mean Squared Error (RMSE)")
+par(mfrow=c(1,1))
+par(mfrow=c(1,1))
+plot(RBSA_window$fundReturn, main="Rolling Fund Return")
+plot(RBSA_window$benchReturn, main="Rolling Style Weighted Return")
+plot(RBSA_window$excessReturn, main="Rolling Excess Return", type="s")
+abline(h=0,col="yellow", lty=2)
+par(mfrow=c(1,1))
+```
+
+### Bootstrap   
+Given the limited history, we can apply a bootstrap approach. In this case we create 120 trials of 30 month periods by sampling the data with replacement.  That is, we randomly pick 30 months with replacement and conduct the RBSA. This is repeated 120 times.  This has some advantages of the rolling window.  It provides more samples.  It also equally weights each month.  The rolling window relatively underweights the months at the extreme (which only are used once) and overweights those in the middle which are used 30 times.  
+
+```{r}
+bootstrap <- rbsa_bootstrap(r.fund, r.style, n=120, width=windowWidth)
+summary(round(bootstrap$weights*100,2))
+boxplot(as.data.frame(bootstrap$weights), col="blue", main="Style Weights for FNDB", ylim=c(0,1))
+par(mfrow=c(1,1))
+hist(bootstrap$regressStats[,"RSquared"], main="Bootstrap R-Squared", xlab="", col="blue")
+hist(bootstrap$regressStats[,"TE"], main="Bootstrap Tracking Error", xlab="", col="blue")
+hist(bootstrap$regressStats[,"MAE"], main ="Bootstrap Mean Absolute Error (MAE)", xlab="", col="blue")
+hist(bootstrap$regressStats[,"RMSE"], main = "Bootstrap Root Mean Squared Error (RMSE)", xlab="", col="blue")
+par(mfrow=c(1,1))
+par(mfrow=c(1,1))
+hist(bootstrap$fundReturn, main="Bootstrap Fund Return", xlab="", col="blue")
+hist(bootstrap$benchReturn, main="Bootstrap Style Weighted Return", xlab="", col="blue")
+hist(bootstrap$excessReturn, main="Bootstrap Excess Return", xlab="", col="blue")
+
+par(mfrow=c(1,1))
+```
+
+### Comment on significance    
+The rolling window and the bootstrap provide an insight into the variability of the exposures.  Exposures to some classes / styles may be zero much of the time.  Should these variables be eliminated altogether is an interesting question.  While a test of statistical significance may indicate they are not significant, it may be that the fund actually has exposure to the class / style albeit rarely.  It's not clear to me that we can distinguish from a spurious correlation and a rare exposure.
+
+### Which exposures to use?  
+If we are going to predict future performance, we need to decide which weights to use.  We could use the exposures over a long window or a recent window. The choice may depend on the horizon of the future performance.  It would seem that the longer the horizon of the prediction, the longer the window to use so that the history captures the variability in weights that might be experienced.
+
+### Estimating the uncertainty of future performance    
+The uncertainty of future relative performance of a fund would depend on (A) the uncertainty of the exposures; and, (B) the uncertainty of the estimates of excess returns of the style betas.  We can easily modify the bootstrap method to estimate the uncertainty due to (A) by just calculating the expected return as we perform the bootstrap. Uncertainty related to (B) is more complicated. We may have the expected excess return for a beta and its tracking error (currently on the RAFI website).  However, we do not have a covariance matrix which would be required to estimate the risk of a fund with exposures to multiple betas.  Likewise, there is uncertainty related to the fact that these parameters may be in error.   
+
+If we get the Smart Beta histories, we may be able to calculate a useable covariance matrix.
+
+### Next Steps / ToDos   
+* Get the history of the Smart Betas and use those as the independent variables.
+* Get forecast Smart Beta returns to calculate expected Smart Beta
+* Create Smart Beta Forecasts for multiple ETFs and Funds.
+    
+[^1]: Sharpe, W., "Determining a Fund's Effective Asset Mix," Investment Management Review, December 1988, pp. 59-69.    
+
+[^2]: Sharpe, W., ["Asset Allocation: Management Style and Performance Measurement"](http://www.stanford.edu/~wfsharpe/art/sa/sa.htm)," Journal of Portfolio Management, 1992, 7-19.
+
+[^3]: Lucas, L. and Riepe, M.,["The Role of Returns-Based Style Analysis: Understanding, Implementing, and Interpreting the Technique"](http://corporate.morningstar.com/ib/documents/MethodologyDocuments/IBBAssociates/ReturnsBasedAnalysis.pdf)

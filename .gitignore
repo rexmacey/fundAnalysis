@@ -2,5 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-temptesting.r
+R/temptesting.r
 inst/doc
+vignettes/development.rmd

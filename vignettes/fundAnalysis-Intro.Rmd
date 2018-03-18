@@ -135,25 +135,25 @@ print(head(residuals(mdl)))  # show the residuals (errors)
 ```
 
 ## Style Analysis    
-Another way to look at the exposures of a fund is via returns-based style analysis (RBSA). RBSA regresses the returns of a fund against the returns of several other funds and constrains the coefficients to sum to 1.0.  We mainly use the FactorAnalysis package for this.  The *RBSA* function finds one set of coefficients using all the data.
+Another way to look at the exposures of a fund is via returns-based style analysis (RBSA). RBSA regresses the returns of a fund against the returns of several other funds and constrains the coefficients to sum to 1.0.  We mainly use the FactorAnalysis package for this.  The *rbsa* function finds one set of coefficients using all the data.
 
 ```{r RBSA_entire window}
 r.fund <- rets_d[[1]]
 colnames(r.fund)<-names(rets_d)[1]
 r.style <- merge.xts(rets_d[[10]],rets_d[[11]],rets_d[[13]],rets_d[[14]],rets_d[[23]],rets_d[[15]],rets_d[[16]])
 colnames(r.style)<-names(rets_d)[c(10,11,13,14,23,15,16)]
-RBSA_1 <- RBSA(r.fund,r.style)
+RBSA_1 <- rbsa(r.fund,r.style)
 print(RBSA_1)
 ```
 
 ## RBSA - rolling window
 
 ```{r RBSA_rolling window}
-RBSA_window <- RBSA_rolling(r.fund,r.style,method="constrained", width = 63)
-head(RBSA_window)
-summary(RBSA_window)
-autoplot(RBSA_window, main = "RBSA for FNDB")
-boxplot(as.data.frame(RBSA_window), col="blue", main="Style Weights for FNDB", ylim=c(0,1))
+RBSA_window <- rbsa_rolling(r.fund,r.style,method="constrained", width = 63)
+head(RBSA_window$weights)
+summary(RBSA_window$weights)
+autoplot(RBSA_window$weights, main = "RBSA for FNDB")
+boxplot(as.data.frame(RBSA_window$weights), col="blue", main="Style Weights for FNDB", ylim=c(0,1))
 ```
 
 # Standard performance measurement    
