@@ -175,7 +175,6 @@ download_FF_5_factor <- function(freq="M"){
     return(out)
 }
 
-
 #' Generates individual lm model for a fund using Fama-French data    
 #' Not public.  
 #'
@@ -365,29 +364,6 @@ coefficients_step <- function(lst){
 
 #' Returns based style analysis    
 #'
-#' @param r.fund Fund returns (xts)
-#' @param r.style Style returns (xts)
-#' @param s Start date
-#' @param e End date
-#' @param n Number of observations
-#' @param method Method from Factor Analyticss package's style.fit function
-#' @param leverage Leverage from Factor Analyticss package's style.fit function
-#' @param selection Selection from Factor Analytics package's style.fit function
-#'
-#' @return List of 3: weights, R.squared, and adj.R.squared
-#' @export
-#'
-#' @examples
-#' RBSA(r.fund, r.style)
-
-RBSA <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, selection="AIC"){
-    data <- faAlignXTS(r.fund, r.style, s, e, n)
-    out <- style.fit(data[[1]], data[[2]], method=method, leverage=leverage, selection=selection)
-    return(out)
-}
-
-#' Returns based style analysis    
-#'
 #' @param r.fund fund returns (xts)
 #' @param r.style style returns (xts)
 #' @param s start date
@@ -412,6 +388,20 @@ rbsa <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", 
     return(out)
 }
 
+#' Calcualate a RBSA fit and regression statistics
+#'
+#' @param y Fund series
+#' @param x Style serices
+#' @param method method from Factor Analyticss package's style.fit function
+#' @param leverage leverage from Factor Analyticss package's style.fit function
+#' @param selection selection from Factor Analytics package's style.fit function
+#' @param scale number of periods in a year
+#'
+#' @return List with weights, regStats, fund return, benchmark (style) return, excess return
+#' @export
+#'
+#' @examples rbsa_calc(y,x)
+#' 
 rbsa_calc <- function(y,x, method="constrained", leverage=FALSE, selection="AIC", scale=12){
     out <- list()
     fit <- style.fit(y,x, method=method, leverage=leverage, selection=selection)
@@ -430,6 +420,17 @@ rbsa_calc <- function(y,x, method="constrained", leverage=FALSE, selection="AIC"
     return(out)
 }
 
+#' Calculate regression statistics
+#' 
+#' @param pred Predicted (yhat) values
+#' @param y Actual values
+#' @param scale number of periods in a year (default=12)
+#'   
+#' @return Vector with RSquared, TE (tracking error), MAE (mean absolute error),
+#'   and RMSE (root mean square error)
+#' @export
+#' 
+#' @examples regressStats(pred, y)
 regressStats <- function(pred,y, scale=12){
     err <- pred - y
     rsquared <- cor(pred,y)^2
@@ -438,29 +439,6 @@ regressStats <- function(pred,y, scale=12){
     rmse <- sqrt(mean(err^2))
     return(c(RSquared=rsquared, TE=te,MAE=mae,RMSE=rmse))
 }
-
-#' RBSA over a rolling window
-#'
-#' @param r.fund Fund returns (xts)
-#' @param r.style  Style returns (xts)
-#' @param s Start date
-#' @param e End date
-#' @param n Number of Observations
-#' @param method Method from Factor Analyticss package's style.fit function
-#' @param leverage Leverage from Factor Analyticss package's style.fit function
-#' @param width Number of observations in a window
-#'
-#' @return xts object with one row per moving window containing the weights
-#' @export
-#'
-#' @examples
-#' RBSA_rolling(r.fund, r.style)
-
-#RBSA_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, width=30, selection="AIC"){
-#    data <- faAlignXTS(r.fund, r.style, s, e, n)
-#    out <- table.RollingStyle(data[[1]],data[[2]], method=method, leverage=leverage,width = width, selection=selection)
-#    return(out)
-#}
 
 #' Returns-based style analysis (RBSA) over a rolling window
 #'
@@ -484,8 +462,7 @@ regressStats <- function(pred,y, scale=12){
 #
 #' @export
 #'
-#' @examples
-#' RBSA_rolling(r.fund, r.style)
+#' @examples RBSA_rolling(r.fund, r.style)
 #' 
 rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, width=30, selection="AIC", scale=12){
     data <- faAlignXTS(r.fund, r.style, s, e, n)
@@ -504,6 +481,28 @@ rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constr
     return(out)
 }
 
+#' Bootstrap of returns-based style analysis (RBSA)
+#'
+#' @param r.fund Fund returns
+#' @param r.style Style returns
+#' @param n Number of trials (bootstrap)
+#' @param method Method from Factor Analyticss package's style.fit function
+#' @param leverage Leverage from Factor Analyticss package's style.fit function
+#' @param width Number of observations in a window
+#' @param selection Selection from Factor Analytics package's style.fit function
+#' @param scale Number of periods in a year
+#'
+#' @return List containing: weights - xts object with one row per moving window containing the weights; 
+#' meanSDofWeights - mean of the standard deviation of the columns of the weights.  Lower values represent 
+#' more consistency of the weightings of the styles; regressStats - xts of the regression stats for each window 
+#' including the rsquared (R2), tracking error (TE), mean absolute error (MAE), and root mean square error (RMSE);
+#' fundReturn are the returns of the fund over each window; benchReturn are the returns of a benchmark defined by the 
+#' style weight of the window (returns are annualized for periods exceeding one year); excessReturn is the fund 
+#' return less the benchmark return.
+#' @export
+#'
+#' @examples rbsa_rolling(r.fudn, r.style)
+#' 
 rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="constrained", leverage=FALSE, width=30, selection="AIC", scale=12){
     data <- faAlignXTS(r.fund, r.style)
     nperiods <- nrow(data[[1]])
@@ -642,3 +641,33 @@ getRiskFree <- function(){
     return(out)
 }
 
+#' Download monthly returns
+#' Produces only complete months
+#' 
+#' @param symbol Symbol (ticker) of security
+#' @param fromDate Start date (default=1970-12-31)
+#' @param toDate End date (default is system date)
+#'
+#' @return xts object with monthly returns and a yearmon index
+#' @export
+#'
+#' @examples downloadMonthlyReturns("FNDB")
+#' 
+downloadMonthlyReturns <- function(symbol, fromDate="1970-12-31", toDate=Sys.Date()){
+    library(xts)
+    library(lubridate)
+    library(tidyquant)
+    cname <- make.names(symbol)
+    if (day(toDate) > 1) {
+        toDate <- make_date(year(toDate), month(toDate), 1)
+    }
+    out <- symbol %>%
+        tq_get(get = "stock.prices",
+               from = fromDate,
+               to = toDate) %>%
+        tq_transmute(select = adjusted,
+                     mutate_fun = periodReturn,
+                     period = "monthly",
+                     col_rename = cname)
+    out <- xts(out[2:nrow(out), cname], order.by = as.yearmon(out$date, "%Y-%m-%d")[2:nrow(out)])
+}

@@ -1,6 +1,6 @@
 Package: fundAnalysis
 Title: Provides Analytics on Mututal Funds and ETFs
-Version: 0.0.0.9004
+Version: 0.0.0.9005
 Authors@R: person("Rex", "Macey", email = "rex@macey.us", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
 Depends: R (>= 3.4.3)

@@ -12,7 +12,7 @@ convertPricesToReturns(prices, freq = "D")
 \item{freq}{M for monthly, or D for daily}
 }
 \value{
-List with xts object of returns
+If ncol(prices)==1, an xts object, else a list with xts object of returns
 }
 \description{
 Converts prices to returns

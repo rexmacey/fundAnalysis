@@ -7,7 +7,7 @@
 getRiskFree()
 }
 \value{
-List with 3 xts objects, prices, returns.daily, and returns.monthly
+List with 4 xts objects: yield, prices, returns.daily, and returns.monthly
 }
 \description{
 Get price and returns for 13 Week Treasury Bills
