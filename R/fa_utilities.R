@@ -380,13 +380,22 @@ coefficients_step <- function(lst){
 #' @examples
 #' RBSA(r.fund, r.style) 
 #' 
-rbsa <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, selection="AIC", scale=12){
-    data <- faAlignXTS(r.fund, r.style, s, e, n)
-    y <- data[[1]]
-    x <- data[[2]]
-    out <- rbsa_calc(y,x, method, leverage, selection, scale)
-    return(out)
-}
+rbsa <-
+    function(r.fund,
+             r.style,
+             s = NULL,
+             e = NULL,
+             n = NULL,
+             method = "normalized",
+             leverage = TRUE,
+             selection = "AIC",
+             scale = 12) {
+        data <- faAlignXTS(r.fund, r.style, s, e, n)
+        y <- data[[1]]
+        x <- data[[2]]
+        out <- rbsa_calc(y, x, method, leverage, selection, scale)
+        return(out)
+    }
 
 #' Calcualate a RBSA fit and regression statistics
 #'
@@ -402,9 +411,9 @@ rbsa <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", 
 #'
 #' @examples rbsa_calc(y,x)
 #' 
-rbsa_calc <- function(y,x, method="constrained", leverage=FALSE, selection="AIC", scale=12){
+rbsa_calc <- function(y,x, method="normalized", leverage=TRUE, selection="AIC", scale=12, trace=0){
     out <- list()
-    fit <- style.fit(y,x, method=method, leverage=leverage, selection=selection)
+    fit <- fa.style.fit(y,x, method=method, leverage=leverage, selection=selection, trace=0)
     out$weights <- unlist(fit$weights)
     names(out$weights) <- colnames(x)
     yhat <- Return.portfolio(x,out$weights,geometric = FALSE)
@@ -464,7 +473,7 @@ regressStats <- function(pred,y, scale=12){
 #'
 #' @examples RBSA_rolling(r.fund, r.style)
 #' 
-rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constrained", leverage=FALSE, width=30, selection="AIC", scale=12){
+rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="normalized", leverage=TRUE, width=30, selection="AIC", scale=12){
     data <- faAlignXTS(r.fund, r.style, s, e, n)
     out<-list()
     i <- seq(width,nrow(data[[1]])) # ending index positions
@@ -491,6 +500,7 @@ rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constr
 #' @param width Number of observations in a window
 #' @param selection Selection from Factor Analytics package's style.fit function
 #' @param scale Number of periods in a year
+#' @param seed If not NULL (default) this is used in the set.seed function.
 #'
 #' @return List containing: weights - xts object with one row per moving window containing the weights; 
 #' meanSDofWeights - mean of the standard deviation of the columns of the weights.  Lower values represent 
@@ -503,14 +513,17 @@ rbsa_rolling <- function(r.fund, r.style, s=NULL, e=NULL, n=NULL, method="constr
 #'
 #' @examples rbsa_rolling(r.fudn, r.style)
 #' 
-rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="constrained", leverage=FALSE, width=30, selection="AIC", scale=12){
+rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="normalized", leverage=TRUE, 
+                           width=30, selection="AIC", scale=12, seed=NULL){
+    if(!is.null(seed)) set.seed(seed)
     data <- faAlignXTS(r.fund, r.style)
     nperiods <- nrow(data[[1]])
     if(width > nperiods) stop("Width greater than number of periods in the data")
-    z <- t(replicate(n,sample(seq(1,nperiods),width, replace = FALSE)))
+    z <- t(replicate(n,sample(seq(1,nperiods),width, replace = TRUE)))
     temp<-lapply(1:n, function(x) {rbsa_calc(data[[1]][z[x,]], 
                                              data[[2]][z[x,]],
-                                             method, leverage, selection)})
+                                             method, leverage, selection,
+                                             scale=scale)})
     out<-list()
     out$weights <- t(sapply(1:n, function(x) temp[[x]]$weights))
     colnames(out$weights) <- colnames(data[[2]])
@@ -641,33 +654,155 @@ getRiskFree <- function(){
     return(out)
 }
 
-#' Download monthly returns
-#' Produces only complete months
+#' Download monthly returns Produces only complete months
 #' 
 #' @param symbol Symbol (ticker) of security
 #' @param fromDate Start date (default=1970-12-31)
 #' @param toDate End date (default is system date)
-#'
+#'   
 #' @return xts object with monthly returns and a yearmon index
 #' @export
-#'
+#' 
 #' @examples downloadMonthlyReturns("FNDB")
 #' 
-downloadMonthlyReturns <- function(symbol, fromDate="1970-12-31", toDate=Sys.Date()){
-    library(xts)
-    library(lubridate)
-    library(tidyquant)
-    cname <- make.names(symbol)
-    if (day(toDate) > 1) {
-        toDate <- make_date(year(toDate), month(toDate), 1)
+downloadMonthlyReturns <-
+    function(symbol,
+             fromDate = "1970-12-31",
+             toDate = Sys.Date()) {
+        library(xts)
+        library(lubridate)
+        library(tidyquant)
+        cname <- make.names(symbol)
+        if (day(toDate) > 1) {
+            toDate <- make_date(year(toDate), month(toDate), 1)
+        }
+        out <- NA
+        try(out <- symbol %>%
+                tq_get(get = "stock.prices",
+                       from = fromDate,
+                       to = toDate) %>%
+                tq_transmute(
+                    select = adjusted,
+                    mutate_fun = periodReturn,
+                    period = "monthly",
+                    col_rename = cname
+                ),
+            silent = TRUE)
+        if (typeof(out) == "list")
+            out <-
+            xts(out[2:nrow(out), cname], order.by = as.yearmon(out$date, "%Y-%m-%d")[2:nrow(out)])
+        return(out)
     }
-    out <- symbol %>%
-        tq_get(get = "stock.prices",
-               from = fromDate,
-               to = toDate) %>%
-        tq_transmute(select = adjusted,
-                     mutate_fun = periodReturn,
-                     period = "monthly",
-                     col_rename = cname)
-    out <- xts(out[2:nrow(out), cname], order.by = as.yearmon(out$date, "%Y-%m-%d")[2:nrow(out)])
+
+#' Calculate effective style weights
+#' This is a clone of the style.fit function from the Factor Analytics package. The only difference is
+#' that it includes a trace parameter to pass to the step function to control its output.
+#'
+#' @param R.fund matrix, data frame, or zoo object with fund returns to be analyzed
+#' @param R.style matrix, data frame, or zoo object with style index returns. Data object must be of the same length and time-aligned with R.fund
+#' @param model logical. If 'model' = TRUE in style.QPfit, the full result set is shown from the output of solve.QP.
+#' @param method specify the method of calculation of style weights as "constrained", "unconstrained", or "normalized". For more information, see style.fit
+#' @param leverage logical, defaults to 'FALSE'. If 'TRUE', the calculation of weights assumes that leverage may be used. For more information, see style.fit
+#' @param selection either "none" (default) or "AIC". If "AIC", then the function uses a stepwise regression to identify find the model with minimum AIC value. See step for more detail.
+#' @param trace value passed to the step function to control feedback. Default is zero to suppress printing.
+#' @param ...
+#'
+#' @return list with weights and r-squared values.
+#' @export
+#'
+#' @examples fa.style.fit(R.fund, R.style)
+fa.style.fit <- function (R.fund,
+                          R.style,
+                          model = FALSE,
+                          method = c("constrained", "unconstrained", "normalized"),
+                          leverage = FALSE,
+                          selection = c("none", "AIC"),
+                          trace = 0,
+                          ...)
+{
+    method = method[1]
+    selection = selection[1]
+    R.fund = checkData(R.fund)
+    R.style = checkData(R.style)
+    style.rows = dim(R.style)[1]
+    style.cols = dim(R.style)[2]
+    fund.rows = dim(R.fund)[1]
+    fund.cols = dim(R.fund)[2]
+    style.colnames = colnames(R.style)
+    for (fund.col in 1:fund.cols) {
+        if (method == "constrained") {
+            column.result = style.QPfit(
+                R.fund = R.fund[, fund.col,
+                                drop = FALSE],
+                R.style = R.style,
+                leverage = leverage
+            )
+            if (fund.col == 1) {
+                result.weights = column.result$weights
+                result.R2 = column.result$R.squared
+                result.adjR2 = column.result$adj.R.squared
+            }
+            else {
+                result.weights = cbind(result.weights, column.result$weights)
+                result.R2 = cbind(result.R2, column.result$R.squared)
+                result.adjR2 = cbind(result.adjR2, column.result$adj.R.squared)
+            }
+        }
+        else if (method == "unconstrained" |
+                 method == "normalized") {
+            column.lm = lm(R.fund[, fund.col] ~ 0 + ., data = R.style)
+            if (selection == "AIC") {
+                column.result = step(column.lm, trace = trace)
+                if (fund.col == 1)
+                    column.weights = data.frame(matrix(
+                        rep(0, length(style.colnames) *
+                                fund.cols),
+                        nrow = length(style.colnames),
+                        ncol = fund.cols
+                    ),
+                    row.names = style.colnames)
+                column.coef = as.data.frame(coef(column.result))
+                if (length(coef(column.result)) > 0) {
+                    row.loc = match(rownames(column.coef),
+                                    rownames(column.weights))
+                    for (i in 1:length(row.loc))
+                        column.weights[row.loc[i],
+                                       fund.col] = column.coef[i, 1]
+                }
+            }
+            else {
+                column.result = column.lm
+                column.weights = as.data.frame(coef(column.lm))
+            }
+            rownames(column.weights) = colnames(R.style)
+            colnames(column.weights) = colnames(R.fund)[fund.col]
+            R2 = as.data.frame(summary(column.result)$r.squared)
+            adjR2 = as.data.frame(summary(column.result)$adj.r.squared)
+            colnames(R2) = colnames(R.fund)[fund.col]
+            colnames(adjR2) = colnames(R.fund)[fund.col]
+            rownames(R2) = "R-squared"
+            rownames(adjR2) = "Adj R-squared"
+            if (method == "normalized") {
+                column.weights = column.weights / sum(column.weights)
+            }
+            if (fund.col == 1) {
+                result.weights = column.weights
+                result.R2 = R2
+                result.adjR2 = adjR2
+            }
+            else {
+                result.weights = cbind(result.weights, column.weights)
+                result.R2 = cbind(result.R2, R2)
+                result.adjR2 = cbind(result.adjR2, adjR2)
+            }
+        }
+        else
+            stop(
+                "Method is mis-specified.  Select from \"constrained\", \"unconstrained\", or  \"normalized\""
+            )
+    }
+    result = list(weights = result.weights,
+                  R.squared = result.R2,
+                  adj.R.squared = result.adjR2)
+    return(result)
 }
