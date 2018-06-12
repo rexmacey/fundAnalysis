@@ -520,10 +520,18 @@ rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="normalized", leverag
     nperiods <- nrow(data[[1]])
     if(width > nperiods) stop("Width greater than number of periods in the data")
     z <- t(replicate(n,sample(seq(1,nperiods),width, replace = TRUE)))
-    temp<-lapply(1:n, function(x) {rbsa_calc(data[[1]][z[x,]], 
-                                             data[[2]][z[x,]],
-                                             method, leverage, selection,
-                                             scale=scale)})
+    temp <- lapply(1:n, function(x) {
+        ry<-data[[1]][z[x, ]]
+        rx<-data[[2]][z[x, ]]
+        index(ry)<-index(r.style)
+        index(rx)<-index(r.style)
+        rbsa_calc(ry, rx, method, 
+                  leverage, selection, scale = scale)
+    })
+    # temp<-lapply(1:n, function(x) {rbsa_calc(data[[1]][z[x,]], 
+    #                                          data[[2]][z[x,]],
+    #                                          method, leverage, selection,
+    #                                          scale=scale)})
     out<-list()
     out$weights <- t(sapply(1:n, function(x) temp[[x]]$weights))
     colnames(out$weights) <- colnames(data[[2]])
@@ -539,6 +547,7 @@ rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="normalized", leverag
 #' Scrape quote summary from Yahoo Finance
 #'
 #' @param symbol Ticker of fund
+#' @param ntries number of attempts after which NULL is returned
 #'
 #' @return List with data from quote summary
 #' @export
@@ -546,16 +555,26 @@ rbsa_bootstrap <- function(r.fund, r.style, n=120L, method="normalized", leverag
 #' @examples
 #' scrapeQuoteSummary("SPY")
 
-scrapeQuoteSummary <- function(symbol){
+scrapeQuoteSummary <- function(symbol, ntries=5){
     url <- paste0("https://finance.yahoo.com/quote/",symbol,"?p=",symbol)
-    webpage <- read_html(url)
-    result <- html_nodes(webpage, "#quote-summary")
-    result <- html_nodes(result, "table") %>% html_table()
-    fundName <- html_nodes(webpage,"h1") %>% html_text()
-    startPos <- regexpr(" - ",fundName)
-    fundName <- substr(fundName,startPos+3,nchar(fundName))
-    out <-  c(symbol,fundName, result[[1]]$X2,result[[2]]$X2)
-    names(out)<-c("Symbol","Fund Name",result[[1]]$X1,result[[2]]$X1)
+    result<-list()
+    attempt <- 0
+    while(length(result)==0 && attempt <= ntries){
+        attempt <- attempt +1
+        webpage <- read_html(url)
+        result <- html_nodes(webpage, "#quote-summary")
+        result <- html_nodes(result, "table") %>% html_table()
+    }
+    if(length(result) > 0){
+        fundName <- html_nodes(webpage,"h1") %>% html_text()
+        startPos <- regexpr(" - ",fundName)
+        fundName <- substr(fundName,startPos+3,nchar(fundName))    
+        out <-  c(symbol,fundName, result[[1]]$X2,result[[2]]$X2)
+        names(out)<-c("Symbol","Fund Name",result[[1]]$X1,result[[2]]$X1)
+    } else {
+        warning(paste("scrapequotesummary failed after", ntries, "attempts for symbol", symbol))
+        out <- NULL
+    }
     return(out)
 }
 
