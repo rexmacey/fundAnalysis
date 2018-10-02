@@ -5,6 +5,7 @@ library(MASS, quietly = TRUE)
 library(FactorAnalytics, quietly = TRUE)
 library(rvest, quietly = TRUE)
 library(RQuantLib, quietly = TRUE)
+library(PerformanceAnalytics, quietly = TRUE)
 
 #' Converts prices to returns    
 #'
