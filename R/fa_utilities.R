@@ -6,6 +6,7 @@ library(MASS, quietly = TRUE)
 library(rvest, quietly = TRUE)
 library(RQuantLib, quietly = TRUE)
 library(PerformanceAnalytics, quietly = TRUE)
+library(lubridate, quietly = TRUE)
 
 #' Converts prices to returns    
 #'
@@ -54,7 +55,8 @@ convertPricesToReturns <- function(prices, freq="D"){
 dateFilter <- function(xtsData,s=NULL,e=NULL,n=NULL){
     if(is.null(s)) s<- start(xtsData[1])
     if(is.null(e)) e<- end(xtsData)
-    data <- xtsData[paste0(s,"/",e)]
+    #data <- xtsData[paste(s, e, sep="/")]
+    data <- xtsData[paste(lubridate::as_date(s),lubridate::as_date(e),sep="/")]
     if(!is.null(n)){
         data<-last(data,n)
     }
