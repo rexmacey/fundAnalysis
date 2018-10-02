@@ -42,16 +42,9 @@ library(PerformanceAnalytics, quietly = TRUE)
 
 ```
 
-`r if(runSections$summary)## Fund summary    `
 ```{r fundSummary, eval=runSections$summary}
 quoteSummary <- scrapeQuoteSummary(fundSymbol)
 kable(quoteSummary, caption = "Basic information")    
-```
-`r if(!runSections$summary)"## not run    "`
-
-## End
-```{r}
-
 ```
 
 
