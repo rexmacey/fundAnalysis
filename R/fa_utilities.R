@@ -676,6 +676,32 @@ getRiskFree <- function(){
     return(out)
 }
 
+#' Download daily returns
+#' 
+#' @param tickers Symbols of securities
+#' @param fromDate Start date (default=1970-12-31)
+#' @param toDate End date (default is system date)
+#'   
+#' @return tibble object with daily returns
+#' @export
+#' 
+#' @examples downloadDailyReturns("FNDB")
+#' 
+downloadDailyReturns <- function(tickers,
+                                 fromDate = "1970-12-31",
+                                 toDate = Sys.Date()){
+    data <- riingo::riingo_prices(ticker = tickers,
+                                  start_date = fromDate,
+                                  end_date = toDate,
+                                  resample_frequency = "daily")
+    
+    returns_daily <- data %>% mutate(date = ymd(date)) %>% group_by(ticker) %>% 
+        tq_mutate(select = adjClose, mutate_fun = periodReturn,
+              period = "daily", type = "arithmetic", leading = FALSE) %>% select(c("ticker", "date", "adjClose", "daily.returns")) %>%
+        drop_na
+    return(returns_daily)
+}
+
 #' Download monthly returns Produces only complete months
 #' 
 #' @param symbol Symbol (ticker) of security

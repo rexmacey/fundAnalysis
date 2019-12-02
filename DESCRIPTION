@@ -1,6 +1,6 @@
 Package: fundAnalysis
 Title: Provides Analytics on Mututal Funds and ETFs
-Version: 0.0.0.9013
+Version: 0.0.0.9016
 Authors@R: person("Rex", "Macey", email = "rex@macey.us", role = c("aut", "cre"))
 Description: Help an investor research mutual funds and ETFs.
 Depends: R (>= 3.4.3)
@@ -12,11 +12,12 @@ Imports:
     MASS,
     quantmod,
     readr,
+    riingo,
     RQuantLib,
     rvest,
     lubridate,
     xts
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1
 Suggests: testthat,
     ggplot2,
     knitr,
